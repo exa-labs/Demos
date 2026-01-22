@@ -176,8 +176,8 @@ app.post('/api/search', async (req, res) => {
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    // Build a more specific query for professional sources
-    const professionalQuery = `"${companyName}" ${upperTicker} stock news ${exchangeName} latest headlines, earnings announcements, updates, analyst reports, or deals for ${companyName}.`;
+    // Build a focused query for professional sources
+    const professionalQuery = `"${companyName}" ${upperTicker} stock news`;
 
     // Run 2 searches in parallel for maximum speed
     const [professionalData, twitterData] = await Promise.all([
