@@ -187,7 +187,6 @@ app.post('/api/search', async (req, res) => {
         type: 'keyword',
         useAutoprompt: true,
         numResults: 10,
-        includeDomains: PROFESSIONAL_DOMAINS,
         startPublishedDate: twoWeeksAgo.toISOString(),
         contents: {
           text: { maxCharacters: 800 },
