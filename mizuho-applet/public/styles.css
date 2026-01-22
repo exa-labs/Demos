@@ -409,13 +409,17 @@ body {
   line-height: 1.4;
 }
 
-.article-title a {
-  color: inherit;
+.article-item-link {
+  display: block;
   text-decoration: none;
-  transition: color 0.15s ease;
+  color: inherit;
 }
 
-.article-title a:hover {
+.article-item-link:hover .article-item {
+  background: var(--gray-100);
+}
+
+.article-item-link:hover .article-title {
   color: var(--brand-default);
 }
 
