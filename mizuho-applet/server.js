@@ -44,7 +44,7 @@ async function classifySentiment(ticker, items, sourceType) {
   }
 
   const textsToClassify = items.map((item, i) =>
-    `${i + 1}. "${item.title || ''}" - ${(item.text || '').slice(0, 200)}`
+    `${i + 1}. "${item.title || ''}" - ${(item.text || '').slice(0, 500)}`
   ).join('\n');
 
   const prompt = `Classify each of the following ${sourceType} about ${ticker} stock as "bullish", "bearish", or "neutral".
@@ -233,7 +233,7 @@ app.post('/api/search', async (req, res) => {
         query: professionalQuery,
         type: 'keyword',
         useAutoprompt: true,
-        numResults: 10,
+        numResults: 15,
         startPublishedDate: twoWeeksAgo.toISOString()
       }).catch(err => ({ results: [], error: err.message })),
 
@@ -241,7 +241,7 @@ app.post('/api/search', async (req, res) => {
         query: `${searchTerm} stock`,
         type: 'auto',
         category: 'tweet',
-        numResults: 10,
+        numResults: 15,
         startPublishedDate: twoWeeksAgo.toISOString(),
         contents: { text: true }
       }).catch(err => ({ results: [], error: err.message }))
@@ -252,7 +252,7 @@ app.post('/api/search', async (req, res) => {
 
     // Process professional results - just titles/urls initially
     const allProfessional = professionalData.results || [];
-    const professional = allProfessional.slice(0, 10).map(r => ({
+    const professional = allProfessional.slice(0, 15).map(r => ({
       title: r.title,
       url: r.url,
       publishedDate: r.publishedDate,
@@ -288,7 +288,7 @@ app.post('/api/search', async (req, res) => {
     const summaries = await Promise.all(summaryPromises);
     professional.forEach((item, i) => {
       item.summary = summaries[i];
-      item.text = contentsByUrl[item.url]?.slice(0, 300);
+      item.text = contentsByUrl[item.url]?.slice(0, 800);
     });
 
     // Process Twitter results - ensure URLs go to x.com
