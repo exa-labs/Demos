@@ -242,15 +242,6 @@ app.post('/api/search', async (req, res) => {
       };
     }) || [];
 
-    // Use remaining professional results as news (last 3)
-    const news = allProfessional.slice(7, 10).map(r => ({
-      title: r.title,
-      url: r.url,
-      text: r.text?.slice(0, 150),
-      publishedDate: r.publishedDate,
-      source: r.url ? new URL(r.url).hostname.replace('www.', '') : 'Unknown'
-    }));
-
     // Classify sentiments in parallel
     const [proClassifications, twitterClassifications] = await Promise.all([
       classifySentiment(upperTicker, professional, 'professional articles'),
@@ -286,10 +277,9 @@ app.post('/api/search', async (req, res) => {
       exchange: exchange || 'NASDAQ',
       exaSearchTime,
       analysisTime,
-      totalResults: professional.length + twitter.length + news.length,
+      totalResults: professional.length + twitter.length,
       professional,
       twitter,
-      news,
       proSentiment: countSentiments(professional),
       twitterSentiment: countSentiments(twitter)
     });
