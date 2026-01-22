@@ -184,7 +184,7 @@ app.post('/api/search', async (req, res) => {
       // Professional sources + news combined (15 results)
       exaSearch({
         query: professionalQuery,
-        type: 'auto',
+        type: 'keyword',
         useAutoprompt: true,
         numResults: 10,
         includeDomains: PROFESSIONAL_DOMAINS,
