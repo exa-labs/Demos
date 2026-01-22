@@ -213,6 +213,24 @@ body {
   color: var(--gray-500);
 }
 
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--gray-200);
+  border-top-color: var(--brand-default);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.enrichment-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--gray-500);
+  margin-top: 8px;
+}
+
 .ticker-highlight {
   font-weight: 600;
   color: var(--brand-default);

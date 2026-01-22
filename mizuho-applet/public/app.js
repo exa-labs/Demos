@@ -46,6 +46,7 @@ async function handleSearch() {
 
     hideLoading();
     displayResults(searchData, false);
+    showEnrichmentLoading();
 
     // Phase 2: Enrich with AI summaries and sentiment (async, updates UI when ready)
     enrichResults(searchData);
@@ -80,6 +81,8 @@ async function enrichResults(searchData) {
     }
   } catch (error) {
     console.error('Enrichment error:', error);
+  } finally {
+    hideEnrichmentLoading();
   }
 }
 
@@ -244,6 +247,14 @@ function showLoading(ticker) {
 function hideLoading() {
   loadingSearch.classList.add('hidden');
   searchBtn.disabled = false;
+}
+
+function showEnrichmentLoading() {
+  document.getElementById('enrichment-loading').classList.remove('hidden');
+}
+
+function hideEnrichmentLoading() {
+  document.getElementById('enrichment-loading').classList.add('hidden');
 }
 
 function showError(message) {
