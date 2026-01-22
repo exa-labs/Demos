@@ -200,7 +200,7 @@ async function lookupCompanyName(ticker, exchangeName) {
   return ticker; // Fallback to ticker if lookup fails
 }
 
-// Main search endpoint - only uses Exa search, no answer
+// Phase 1: Fast search - returns results immediately without AI enrichment
 app.post('/api/search', async (req, res) => {
   const { ticker, exchange } = req.body;
 
@@ -217,17 +217,14 @@ app.post('/api/search', async (req, res) => {
   const exaStartTime = Date.now();
 
   try {
-    // First, look up the company name for better search results
     const companyName = await lookupCompanyName(upperTicker, exchangeName);
     const searchTerm = companyName !== upperTicker ? `${companyName} (${upperTicker})` : upperTicker;
 
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    // Build a focused query for professional sources
     const professionalQuery = `"${companyName}" stock news`;
 
-    // Run 2 searches in parallel WITHOUT contents for speed
     const [professionalData, twitterData] = await Promise.all([
       exaSearch({
         query: professionalQuery,
@@ -248,9 +245,7 @@ app.post('/api/search', async (req, res) => {
     ]);
 
     const exaSearchTime = Date.now() - exaStartTime;
-    const analysisStartTime = Date.now();
 
-    // Process professional results - just titles/urls initially
     const allProfessional = professionalData.results || [];
     const professional = allProfessional.slice(0, 15).map(r => ({
       title: r.title,
@@ -260,38 +255,6 @@ app.post('/api/search', async (req, res) => {
       favicon: r.favicon
     }));
 
-    // Get contents for professional URLs and generate summaries
-    const professionalUrls = professional.map(p => p.url).filter(Boolean);
-    let contentsData = { results: [] };
-    if (professionalUrls.length > 0) {
-      try {
-        contentsData = await exaGetContents(professionalUrls);
-      } catch (err) {
-        console.error('Contents fetch error:', err.message);
-      }
-    }
-
-    // Map contents back to professional items and generate summaries
-    const contentsByUrl = {};
-    (contentsData.results || []).forEach(r => {
-      contentsByUrl[r.url] = r.text;
-    });
-
-    // Generate summaries in parallel
-    const summaryPromises = professional.map(item => {
-      const text = contentsByUrl[item.url];
-      if (text) {
-        return generateSummary(upperTicker, item.title, text);
-      }
-      return Promise.resolve(null);
-    });
-    const summaries = await Promise.all(summaryPromises);
-    professional.forEach((item, i) => {
-      item.summary = summaries[i];
-      item.text = contentsByUrl[item.url]?.slice(0, 800);
-    });
-
-    // Process Twitter results - ensure URLs go to x.com
     const twitter = twitterData.results?.map(r => {
       let url = r.url || '';
       if (url.includes('twitter.com')) {
@@ -306,22 +269,81 @@ app.post('/api/search', async (req, res) => {
       };
     }) || [];
 
-    // Classify sentiments in parallel
+    res.json({
+      ticker: upperTicker,
+      companyName: companyName !== upperTicker ? companyName : null,
+      exchange: exchange || 'NASDAQ',
+      exaSearchTime,
+      totalResults: professional.length + twitter.length,
+      professional,
+      twitter
+    });
+
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      error: 'Search failed',
+      message: error.message
+    });
+  }
+});
+
+// Phase 2: Enrich - fetches contents, generates summaries and sentiment
+app.post('/api/enrich', async (req, res) => {
+  const { ticker, professional, twitter } = req.body;
+
+  if (!ticker || !professional) {
+    return res.status(400).json({ error: 'ticker and professional array required' });
+  }
+
+  const upperTicker = ticker.toUpperCase();
+
+  try {
+    const professionalUrls = professional.map(p => p.url).filter(Boolean);
+    let contentsData = { results: [] };
+    if (professionalUrls.length > 0) {
+      try {
+        contentsData = await exaGetContents(professionalUrls);
+      } catch (err) {
+        console.error('Contents fetch error:', err.message);
+      }
+    }
+
+    const contentsByUrl = {};
+    (contentsData.results || []).forEach(r => {
+      contentsByUrl[r.url] = r.text;
+    });
+
+    const enrichedProfessional = professional.map(item => ({
+      ...item,
+      text: contentsByUrl[item.url]?.slice(0, 800) || ''
+    }));
+
+    const summaryPromises = enrichedProfessional.map(item => {
+      if (item.text) {
+        return generateSummary(upperTicker, item.title, item.text);
+      }
+      return Promise.resolve(null);
+    });
+    const summaries = await Promise.all(summaryPromises);
+    enrichedProfessional.forEach((item, i) => {
+      item.summary = summaries[i];
+    });
+
     const [proClassifications, twitterClassifications] = await Promise.all([
-      classifySentiment(upperTicker, professional, 'professional articles'),
-      classifySentiment(upperTicker, twitter, 'tweets')
+      classifySentiment(upperTicker, enrichedProfessional, 'professional articles'),
+      classifySentiment(upperTicker, twitter || [], 'tweets')
     ]);
 
-    professional.forEach((item, i) => {
+    enrichedProfessional.forEach((item, i) => {
       item.sentiment = proClassifications[i] || 'neutral';
     });
-    twitter.forEach((item, i) => {
-      item.sentiment = twitterClassifications[i] || 'neutral';
-    });
 
-    const analysisTime = Date.now() - analysisStartTime;
+    const enrichedTwitter = (twitter || []).map((item, i) => ({
+      ...item,
+      sentiment: twitterClassifications[i] || 'neutral'
+    }));
 
-    // Calculate sentiment counts
     const countSentiments = (items) => {
       const counts = { bullish: 0, neutral: 0, bearish: 0 };
       items.forEach(item => {
@@ -335,22 +357,16 @@ app.post('/api/search', async (req, res) => {
     };
 
     res.json({
-      ticker: upperTicker,
-      companyName: companyName !== upperTicker ? companyName : null,
-      exchange: exchange || 'NASDAQ',
-      exaSearchTime,
-      analysisTime,
-      totalResults: professional.length + twitter.length,
-      professional,
-      twitter,
-      proSentiment: countSentiments(professional),
-      twitterSentiment: countSentiments(twitter)
+      professional: enrichedProfessional,
+      twitter: enrichedTwitter,
+      proSentiment: countSentiments(enrichedProfessional),
+      twitterSentiment: countSentiments(enrichedTwitter)
     });
 
   } catch (error) {
-    console.error('Search error:', error);
+    console.error('Enrich error:', error);
     res.status(500).json({
-      error: 'Search failed',
+      error: 'Enrichment failed',
       message: error.message
     });
   }

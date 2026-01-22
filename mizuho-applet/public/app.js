@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Handle search
+// Handle search - two phase: fast results first, then AI enrichment
 async function handleSearch() {
   const ticker = tickerInput.value.trim().toUpperCase();
   const exchange = exchangeSelect.value;
@@ -31,20 +31,24 @@ async function handleSearch() {
   showLoading(ticker);
 
   try {
-    const response = await fetch('/api/search', {
+    // Phase 1: Fast search - display results immediately
+    const searchResponse = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticker, exchange })
     });
 
-    const data = await response.json();
+    const searchData = await searchResponse.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Search failed');
+    if (!searchResponse.ok) {
+      throw new Error(searchData.error || 'Search failed');
     }
 
     hideLoading();
-    displayResults(data);
+    displayResults(searchData, false);
+
+    // Phase 2: Enrich with AI summaries and sentiment (async, updates UI when ready)
+    enrichResults(searchData);
 
   } catch (error) {
     console.error('Search error:', error);
@@ -53,8 +57,34 @@ async function handleSearch() {
   }
 }
 
-// Display results
-function displayResults(data) {
+// Fetch AI enrichment and update UI
+async function enrichResults(searchData) {
+  try {
+    const enrichResponse = await fetch('/api/enrich', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticker: searchData.ticker,
+        professional: searchData.professional,
+        twitter: searchData.twitter
+      })
+    });
+
+    const enrichData = await enrichResponse.json();
+
+    if (enrichResponse.ok) {
+      displaySentimentBar('pro', enrichData.proSentiment, enrichData.professional.length);
+      displaySentimentBar('twitter', enrichData.twitterSentiment, enrichData.twitter.length);
+      displayProfessionalFeed(enrichData.professional);
+      displayTwitterFeed(enrichData.twitter);
+    }
+  } catch (error) {
+    console.error('Enrichment error:', error);
+  }
+}
+
+// Display results - isEnriched=false means initial fast display without sentiment
+function displayResults(data, isEnriched = true) {
   resultsEl.classList.remove('hidden');
 
   // Stock Chart
@@ -67,14 +97,22 @@ function displayResults(data) {
   const displayName = data.companyName ? `${data.companyName} (${data.ticker})` : data.ticker;
   document.getElementById('ticker-display').textContent = `Showing results for ${displayName} from the past 2 weeks`;
 
-  // Professional sentiment bar
-  displaySentimentBar('pro', data.proSentiment, data.professional.length);
+  // Professional sources
   document.getElementById('pro-count').textContent = `${data.professional.length} sources`;
+  if (isEnriched && data.proSentiment) {
+    displaySentimentBar('pro', data.proSentiment, data.professional.length);
+  } else {
+    displaySentimentBar('pro', null, 0);
+  }
   displayProfessionalFeed(data.professional);
 
-  // Twitter sentiment bar
-  displaySentimentBar('twitter', data.twitterSentiment, data.twitter.length);
+  // Twitter
   document.getElementById('twitter-count').textContent = `${data.twitter.length} tweets`;
+  if (isEnriched && data.twitterSentiment) {
+    displaySentimentBar('twitter', data.twitterSentiment, data.twitter.length);
+  } else {
+    displaySentimentBar('twitter', null, 0);
+  }
   displayTwitterFeed(data.twitter);
 }
 
