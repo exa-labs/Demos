@@ -28,6 +28,16 @@
           autocomplete="off"
           spellcheck="false"
         >
+        <select id="exchange-select" class="exchange-dropdown">
+          <option value="NASDAQ">NASDAQ</option>
+          <option value="NYSE">NYSE</option>
+          <option value="TSE">Tokyo Stock Exchange</option>
+          <option value="LSE">London Stock Exchange</option>
+          <option value="HKEX">Hong Kong Exchange</option>
+          <option value="SSE">Shanghai Stock Exchange</option>
+          <option value="XETRA">Frankfurt (XETRA)</option>
+          <option value="ASX">Australian Securities Exchange</option>
+        </select>
         <button id="search-btn" class="btn-primary">Analyze</button>
       </div>
     </section>
@@ -48,7 +58,9 @@
       <!-- Stock Chart -->
       <section id="chart-section" class="card chart-card">
         <h3 class="card-title">
-          <span id="chart-ticker">Stock</span> Price Chart
+          <a id="chart-link" href="#" target="_blank" rel="noopener" title="View on TradingView">
+            <span id="chart-ticker">Stock</span> Price Chart ↗
+          </a>
         </h3>
         <div id="tradingview-widget" class="chart-container"></div>
       </section>
@@ -56,16 +68,6 @@
       <!-- Search Complete Banner -->
       <div id="search-complete-banner" class="search-banner">
         <div class="banner-stats">
-          <div class="stat exa-stat">
-            <span class="stat-label">Exa Search</span>
-            <span class="stat-value"><span id="exa-time">0</span>ms</span>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat">
-            <span class="stat-label">AI Analysis</span>
-            <span class="stat-value"><span id="analysis-time">0</span>ms</span>
-          </div>
-          <div class="stat-divider"></div>
           <div class="stat">
             <span class="stat-label">Sources Found</span>
             <span class="stat-value"><span id="result-count">0</span></span>

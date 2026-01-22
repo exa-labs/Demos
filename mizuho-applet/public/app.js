@@ -1,5 +1,6 @@
 // DOM Elements
 const tickerInput = document.getElementById('ticker-input');
+const exchangeSelect = document.getElementById('exchange-select');
 const searchBtn = document.getElementById('search-btn');
 const loadingSearch = document.getElementById('loading-search');
 const loadingTicker = document.getElementById('loading-ticker');
@@ -18,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Handle search
 async function handleSearch() {
   const ticker = tickerInput.value.trim().toUpperCase();
+  const exchange = exchangeSelect.value;
 
   if (!ticker) {
     showError('Please enter a ticker symbol');
@@ -32,7 +34,7 @@ async function handleSearch() {
     const response = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker })
+      body: JSON.stringify({ ticker, exchange })
     });
 
     const data = await response.json();
@@ -56,14 +58,14 @@ function displayResults(data) {
   resultsEl.classList.remove('hidden');
 
   // Stock Chart
-  initChart(data.ticker);
+  const tvSymbol = initChart(data.ticker, data.exchange);
   document.getElementById('chart-ticker').textContent = data.ticker;
+  document.getElementById('chart-link').href = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`;
 
-  // Banner - showcase Exa speed
-  document.getElementById('exa-time').textContent = data.exaSearchTime;
-  document.getElementById('analysis-time').textContent = data.analysisTime;
+  // Banner
   document.getElementById('result-count').textContent = data.totalResults;
-  document.getElementById('ticker-display').textContent = `Showing results for ${data.ticker} from the past 2 weeks`;
+  const displayName = data.companyName ? `${data.companyName} (${data.ticker})` : data.ticker;
+  document.getElementById('ticker-display').textContent = `Showing results for ${displayName} from the past 2 weeks`;
 
   // Professional sentiment bar
   displaySentimentBar('pro', data.proSentiment, data.professional.length);
@@ -80,13 +82,27 @@ function displayResults(data) {
 }
 
 // Initialize TradingView chart - minimal config for speed
-function initChart(ticker) {
+function initChart(ticker, exchange) {
   const container = document.getElementById('tradingview-widget');
   container.innerHTML = '';
 
+  // Map exchange to TradingView format
+  const exchangeMap = {
+    'NASDAQ': 'NASDAQ',
+    'NYSE': 'NYSE',
+    'TSE': 'TSE',
+    'LSE': 'LSE',
+    'HKEX': 'HKEX',
+    'SSE': 'SSE',
+    'XETRA': 'XETR',
+    'ASX': 'ASX'
+  };
+  const tvExchange = exchangeMap[exchange] || exchange;
+  const symbol = `${tvExchange}:${ticker}`;
+
   if (typeof TradingView !== 'undefined') {
     new TradingView.widget({
-      symbol: ticker,
+      symbol: symbol,
       interval: 'D',
       timezone: 'Etc/UTC',
       theme: 'light',
@@ -109,6 +125,8 @@ function initChart(ticker) {
   } else {
     container.innerHTML = '<p class="no-data">Chart unavailable</p>';
   }
+
+  return symbol;
 }
 
 // Display sentiment bar
