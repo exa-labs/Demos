@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Sentiment Analyzer | Powered by Exa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-section">
+        <img src="exa-logo.svg" alt="Exa" class="exa-logo">
+        <span class="logo-divider"></span>
+        <h1>Stock Sentiment Analyzer</h1>
+      </div>
+    </header>
+
+    <!-- Search Section -->
+    <section class="search-section">
+      <p class="search-subtext">Analyze market sentiment by comparing professional financial coverage with social media discussions. Enter a stock ticker to see how Wall Street and retail investors differ in their outlook.</p>
+      <div class="search-box">
+        <input
+          type="text"
+          id="ticker-input"
+          placeholder="Enter ticker symbol (e.g., AAPL, TSLA, NVDA)"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button id="search-btn" class="btn-primary">Analyze</button>
+      </div>
+    </section>
+
+    <!-- Loading State -->
+    <div id="loading-search" class="loading hidden">
+      <div class="spinner"></div>
+      <p>Searching for <span id="loading-ticker" class="ticker-highlight"></span>...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="error" class="error-message hidden">
+      <p id="error-text"></p>
+    </div>
+
+    <!-- Results Section -->
+    <main id="results" class="results hidden">
+      <!-- Stock Chart -->
+      <section id="chart-section" class="card chart-card">
+        <h3 class="card-title">
+          <span id="chart-ticker">Stock</span> Price Chart
+        </h3>
+        <div id="tradingview-widget" class="chart-container"></div>
+      </section>
+
+      <!-- Search Complete Banner -->
+      <div id="search-complete-banner" class="search-banner">
+        <div class="banner-stats">
+          <div class="stat exa-stat">
+            <span class="stat-label">Exa Search</span>
+            <span class="stat-value"><span id="exa-time">0</span>ms</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat">
+            <span class="stat-label">AI Analysis</span>
+            <span class="stat-value"><span id="analysis-time">0</span>ms</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat">
+            <span class="stat-label">Sources Found</span>
+            <span class="stat-value"><span id="result-count">0</span></span>
+          </div>
+        </div>
+        <div class="banner-ticker" id="ticker-display"></div>
+      </div>
+
+      <!-- Two Column Sentiment Grid -->
+      <section class="sentiment-grid">
+        <!-- Professional Sentiment (Left) -->
+        <div class="card sentiment-card">
+          <h3 class="card-title">
+            Professional Sentiment
+            <span id="pro-count" class="source-count"></span>
+          </h3>
+          <div id="pro-sentiment-bar" class="sentiment-bar-container">
+            <div class="sentiment-bar">
+              <div class="sentiment-segment bullish" id="pro-bullish"></div>
+              <div class="sentiment-segment neutral" id="pro-neutral"></div>
+              <div class="sentiment-segment bearish" id="pro-bearish"></div>
+            </div>
+            <div class="sentiment-labels">
+              <span class="label bullish"><span class="dot"></span> Bullish <span id="pro-bullish-count">0</span></span>
+              <span class="label neutral"><span class="dot"></span> Neutral <span id="pro-neutral-count">0</span></span>
+              <span class="label bearish"><span class="dot"></span> Bearish <span id="pro-bearish-count">0</span></span>
+            </div>
+          </div>
+          <div id="professional-feed" class="article-feed"></div>
+        </div>
+
+        <!-- Twitter Sentiment (Right) -->
+        <div class="card sentiment-card">
+          <h3 class="card-title">
+            Twitter Sentiment
+            <span id="twitter-count" class="source-count"></span>
+          </h3>
+          <div id="twitter-sentiment-bar" class="sentiment-bar-container">
+            <div class="sentiment-bar">
+              <div class="sentiment-segment bullish" id="twitter-bullish"></div>
+              <div class="sentiment-segment neutral" id="twitter-neutral"></div>
+              <div class="sentiment-segment bearish" id="twitter-bearish"></div>
+            </div>
+            <div class="sentiment-labels">
+              <span class="label bullish"><span class="dot"></span> Bullish <span id="twitter-bullish-count">0</span></span>
+              <span class="label neutral"><span class="dot"></span> Neutral <span id="twitter-neutral-count">0</span></span>
+              <span class="label bearish"><span class="dot"></span> Bearish <span id="twitter-bearish-count">0</span></span>
+            </div>
+          </div>
+          <div id="twitter-feed" class="twitter-feed"></div>
+        </div>
+      </section>
+
+      <!-- Recent News -->
+      <section class="card">
+        <h3 class="card-title">
+          Recent News
+        </h3>
+        <div id="news-feed" class="news-feed"></div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Powered by <a href="https://exa.ai" target="_blank" rel="noopener">Exa</a> - The search engine for AI</p>
+    </footer>
+  </div>
+
+  <script src="https://s3.tradingview.com/tv.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
