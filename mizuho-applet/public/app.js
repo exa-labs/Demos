@@ -196,20 +196,20 @@ function displayProfessionalFeed(articles) {
   }
 
   el.innerHTML = articles.map(article => `
-    <div class="article-item ${article.sentiment || 'neutral'}">
-      <div class="article-source">
-        ${article.favicon ? `<img src="${article.favicon}" alt="" onerror="this.style.display='none'">` : ''}
-        <span class="article-source-name">${article.source}</span>
-        <span class="article-source-date">${formatDate(article.publishedDate)}</span>
-        <span class="sentiment-tag ${article.sentiment || 'neutral'}">${article.sentiment || 'neutral'}</span>
+    <a href="${article.url || '#'}" target="_blank" rel="noopener" class="article-item-link">
+      <div class="article-item ${article.sentiment || 'neutral'}">
+        <div class="article-source">
+          ${article.favicon ? `<img src="${article.favicon}" alt="" onerror="this.style.display='none'">` : ''}
+          <span class="article-source-name">${article.source}</span>
+          <span class="article-source-date">${formatDate(article.publishedDate)}</span>
+          <span class="sentiment-tag ${article.sentiment || 'neutral'}">${article.sentiment || 'neutral'}</span>
+        </div>
+        <div class="article-title">${article.title || 'Untitled'}</div>
+        ${article.summary ? `
+          <div class="article-summary">${article.summary}</div>
+        ` : ''}
       </div>
-      <div class="article-title">
-        ${article.url ? `<a href="${article.url}" target="_blank" rel="noopener">${article.title || 'Untitled'}</a>` : (article.title || 'Untitled')}
-      </div>
-      ${article.summary ? `
-        <div class="article-summary">${article.summary}</div>
-      ` : ''}
-    </div>
+    </a>
   `).join('');
 }
 
