@@ -76,9 +76,6 @@ function displayResults(data) {
   displaySentimentBar('twitter', data.twitterSentiment, data.twitter.length);
   document.getElementById('twitter-count').textContent = `${data.twitter.length} tweets`;
   displayTwitterFeed(data.twitter);
-
-  // News
-  displayNewsFeed(data.news);
 }
 
 // Initialize TradingView chart - minimal config for speed
@@ -197,29 +194,6 @@ function displayTwitterFeed(tweets) {
         <span class="tweet-date">${formatDate(tweet.publishedDate)}</span>
       </div>
       <div class="tweet-text">${escapeHtml(tweet.text || tweet.title || '')}</div>
-    </div>
-  `).join('');
-}
-
-// Display news feed
-function displayNewsFeed(news) {
-  const el = document.getElementById('news-feed');
-
-  if (!news?.length) {
-    el.innerHTML = '<p class="no-data">No recent news found</p>';
-    return;
-  }
-
-  el.innerHTML = news.map(item => `
-    <div class="news-item">
-      <div class="news-date">${formatDate(item.publishedDate)}</div>
-      <div class="news-content">
-        <div class="news-title">
-          ${item.url ? `<a href="${item.url}" target="_blank" rel="noopener">${item.title || 'News'}</a>` : (item.title || 'News')}
-        </div>
-        ${item.text ? `<div class="news-excerpt">${truncate(item.text, 120)}</div>` : ''}
-        <div class="news-source">${item.source}</div>
-      </div>
     </div>
   `).join('');
 }
