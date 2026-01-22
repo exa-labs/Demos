@@ -94,9 +94,67 @@ async function exaSearch(body) {
   return response.json();
 }
 
+// Map exchange codes to full names for better Exa search context
+const EXCHANGE_NAMES = {
+  'NASDAQ': 'NASDAQ',
+  'NYSE': 'New York Stock Exchange NYSE',
+  'TSE': 'Tokyo Stock Exchange',
+  'LSE': 'London Stock Exchange',
+  'HKEX': 'Hong Kong Stock Exchange',
+  'SSE': 'Shanghai Stock Exchange',
+  'XETRA': 'Frankfurt Stock Exchange XETRA',
+  'ASX': 'Australian Securities Exchange'
+};
+
+// Look up company name from ticker and exchange using Exa
+async function lookupCompanyName(ticker, exchangeName) {
+  try {
+    const result = await exaSearch({
+      query: `${ticker} ${exchangeName} stock company`,
+      type: 'auto',
+      numResults: 3,
+      contents: {
+        text: { maxCharacters: 300 }
+      }
+    });
+
+    if (result.results && result.results.length > 0) {
+      // Extract company name from the first result's title
+      // Titles often follow patterns like "Apple Inc. (AAPL)" or "AAPL - Apple Inc."
+      const firstTitle = result.results[0].title || '';
+      const firstText = result.results[0].text || '';
+
+      // Use OpenAI to extract the company name
+      const client = getOpenAI();
+      if (client) {
+        const response = await client.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "Extract the full company name from the given context. Respond with ONLY the company name, nothing else. If unclear, respond with just the ticker symbol."
+            },
+            {
+              role: "user",
+              content: `Ticker: ${ticker}\nExchange: ${exchangeName}\nTitle: ${firstTitle}\nText: ${firstText.slice(0, 200)}`
+            }
+          ],
+          temperature: 0
+        });
+        const companyName = response.choices[0].message.content.trim();
+        console.log(`Resolved ${ticker} on ${exchangeName} to: ${companyName}`);
+        return companyName;
+      }
+    }
+  } catch (error) {
+    console.error('Company name lookup error:', error.message);
+  }
+  return ticker; // Fallback to ticker if lookup fails
+}
+
 // Main search endpoint - only uses Exa search, no answer
 app.post('/api/search', async (req, res) => {
-  const { ticker } = req.body;
+  const { ticker, exchange } = req.body;
 
   if (!ticker) {
     return res.status(400).json({ error: 'Ticker symbol is required' });
@@ -107,19 +165,28 @@ app.post('/api/search', async (req, res) => {
   }
 
   const upperTicker = ticker.toUpperCase();
+  const exchangeName = EXCHANGE_NAMES[exchange] || exchange || 'stock market';
   const exaStartTime = Date.now();
 
   try {
+    // First, look up the company name for better search results
+    const companyName = await lookupCompanyName(upperTicker, exchangeName);
+    const searchTerm = companyName !== upperTicker ? `${companyName} (${upperTicker})` : upperTicker;
+
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    // Build a more specific query for professional sources
+    const professionalQuery = `"${companyName}" OR "${upperTicker}" stock price forecast analyst rating earnings financial analysis`;
 
     // Run 2 searches in parallel for maximum speed
     const [professionalData, twitterData] = await Promise.all([
       // Professional sources + news combined (15 results)
       exaSearch({
-        query: `${upperTicker} stock analysis outlook news`,
-        type: 'auto',
-        numResults: 15,
+        query: professionalQuery,
+        type: 'neural',
+        useAutoprompt: true,
+        numResults: 10,
         includeDomains: PROFESSIONAL_DOMAINS,
         startPublishedDate: twoWeeksAgo.toISOString(),
         contents: {
@@ -127,17 +194,17 @@ app.post('/api/search', async (req, res) => {
           highlights: {
             numSentences: 2,
             highlightsPerUrl: 1,
-            query: `${upperTicker} stock outlook`
+            query: `${companyName} ${upperTicker} stock outlook`
           }
         }
       }).catch(err => ({ results: [], error: err.message })),
 
       // Twitter/X search (15 results)
       exaSearch({
-        query: `${upperTicker} stock`,
+        query: `${searchTerm} stock`,
         type: 'auto',
         category: 'tweet',
-        numResults: 15,
+        numResults: 10,
         startPublishedDate: twoWeeksAgo.toISOString(),
         contents: {
           text: true
@@ -148,9 +215,9 @@ app.post('/api/search', async (req, res) => {
     const exaSearchTime = Date.now() - exaStartTime;
     const analysisStartTime = Date.now();
 
-    // Process professional results (first 10 for analysis, last 5 for news)
+    // Process professional results (first 7 for analysis, last 3 for news)
     const allProfessional = professionalData.results || [];
-    const professional = allProfessional.slice(0, 10).map(r => ({
+    const professional = allProfessional.slice(0, 7).map(r => ({
       title: r.title,
       url: r.url,
       text: r.text?.slice(0, 600),
@@ -176,8 +243,8 @@ app.post('/api/search', async (req, res) => {
       };
     }) || [];
 
-    // Use remaining professional results as news (last 5)
-    const news = allProfessional.slice(10, 15).map(r => ({
+    // Use remaining professional results as news (last 3)
+    const news = allProfessional.slice(7, 10).map(r => ({
       title: r.title,
       url: r.url,
       text: r.text?.slice(0, 150),
@@ -216,6 +283,8 @@ app.post('/api/search', async (req, res) => {
 
     res.json({
       ticker: upperTicker,
+      companyName: companyName !== upperTicker ? companyName : null,
+      exchange: exchange || 'NASDAQ',
       exaSearchTime,
       analysisTime,
       totalResults: professional.length + twitter.length + news.length,
