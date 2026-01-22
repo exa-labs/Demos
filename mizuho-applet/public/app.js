@@ -168,11 +168,9 @@ function displayProfessionalFeed(articles) {
       <div class="article-title">
         ${article.url ? `<a href="${article.url}" target="_blank" rel="noopener">${article.title || 'Untitled'}</a>` : (article.title || 'Untitled')}
       </div>
-      ${article.highlights?.length ? `
-        <div class="article-highlight">"${article.highlights[0]}"</div>
-      ` : (article.text ? `
-        <div class="article-highlight">${truncate(article.text, 200)}</div>
-      ` : '')}
+      ${article.summary ? `
+        <div class="article-summary">${article.summary}</div>
+      ` : ''}
     </div>
   `).join('');
 }

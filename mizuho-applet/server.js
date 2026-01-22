@@ -94,6 +94,54 @@ async function exaSearch(body) {
   return response.json();
 }
 
+async function exaGetContents(urls) {
+  const response = await fetch(`${EXA_BASE_URL}/contents`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': EXA_API_KEY
+    },
+    body: JSON.stringify({
+      urls,
+      text: { maxCharacters: 1000 }
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Exa Contents API error: ${response.status} - ${error}`);
+  }
+
+  return response.json();
+}
+
+async function generateSummary(ticker, title, text) {
+  const client = getOpenAI();
+  if (!client || !text) return null;
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "Generate a one-sentence summary of the article's relevance to the stock. Be concise and focus on the key insight."
+        },
+        {
+          role: "user",
+          content: `Stock: ${ticker}\nTitle: ${title}\nContent: ${text.slice(0, 800)}`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 100
+    });
+    return response.choices[0].message.content.trim();
+  } catch (error) {
+    console.error('Summary generation error:', error.message);
+    return null;
+  }
+}
+
 // Map exchange codes to full names for better Exa search context
 const EXCHANGE_NAMES = {
   'NASDAQ': 'NASDAQ',
@@ -179,57 +227,73 @@ app.post('/api/search', async (req, res) => {
     // Build a focused query for professional sources
     const professionalQuery = `"${companyName}" stock news`;
 
-    // Run 2 searches in parallel for maximum speed
+    // Run 2 searches in parallel WITHOUT contents for speed
     const [professionalData, twitterData] = await Promise.all([
-      // Professional sources + news combined (15 results)
       exaSearch({
         query: professionalQuery,
         type: 'keyword',
         useAutoprompt: true,
         numResults: 10,
-        startPublishedDate: twoWeeksAgo.toISOString(),
-        contents: {
-          text: { maxCharacters: 800 },
-          highlights: {
-            numSentences: 2,
-            highlightsPerUrl: 1,
-            query: `${companyName} ${upperTicker} stock outlook`
-          }
-        }
+        startPublishedDate: twoWeeksAgo.toISOString()
       }).catch(err => ({ results: [], error: err.message })),
 
-      // Twitter/X search (15 results)
       exaSearch({
         query: `${searchTerm} stock`,
         type: 'auto',
         category: 'tweet',
         numResults: 10,
         startPublishedDate: twoWeeksAgo.toISOString(),
-        contents: {
-          text: true
-        }
+        contents: { text: true }
       }).catch(err => ({ results: [], error: err.message }))
     ]);
 
     const exaSearchTime = Date.now() - exaStartTime;
     const analysisStartTime = Date.now();
 
-    // Process professional results (first 7 for analysis, last 3 for news)
+    // Process professional results - just titles/urls initially
     const allProfessional = professionalData.results || [];
-    const professional = allProfessional.slice(0, 7).map(r => ({
+    const professional = allProfessional.slice(0, 10).map(r => ({
       title: r.title,
       url: r.url,
-      text: r.text?.slice(0, 600),
-      highlights: r.highlights,
       publishedDate: r.publishedDate,
       source: r.url ? new URL(r.url).hostname.replace('www.', '') : 'Unknown',
       favicon: r.favicon
     }));
 
+    // Get contents for professional URLs and generate summaries
+    const professionalUrls = professional.map(p => p.url).filter(Boolean);
+    let contentsData = { results: [] };
+    if (professionalUrls.length > 0) {
+      try {
+        contentsData = await exaGetContents(professionalUrls);
+      } catch (err) {
+        console.error('Contents fetch error:', err.message);
+      }
+    }
+
+    // Map contents back to professional items and generate summaries
+    const contentsByUrl = {};
+    (contentsData.results || []).forEach(r => {
+      contentsByUrl[r.url] = r.text;
+    });
+
+    // Generate summaries in parallel
+    const summaryPromises = professional.map(item => {
+      const text = contentsByUrl[item.url];
+      if (text) {
+        return generateSummary(upperTicker, item.title, text);
+      }
+      return Promise.resolve(null);
+    });
+    const summaries = await Promise.all(summaryPromises);
+    professional.forEach((item, i) => {
+      item.summary = summaries[i];
+      item.text = contentsByUrl[item.url]?.slice(0, 300);
+    });
+
     // Process Twitter results - ensure URLs go to x.com
     const twitter = twitterData.results?.map(r => {
       let url = r.url || '';
-      // Convert twitter.com URLs to x.com
       if (url.includes('twitter.com')) {
         url = url.replace('twitter.com', 'x.com');
       }
@@ -248,7 +312,6 @@ app.post('/api/search', async (req, res) => {
       classifySentiment(upperTicker, twitter, 'tweets')
     ]);
 
-    // Add classifications to items
     professional.forEach((item, i) => {
       item.sentiment = proClassifications[i] || 'neutral';
     });
